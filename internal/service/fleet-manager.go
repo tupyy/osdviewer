@@ -37,6 +37,7 @@ func (fm *FleetManager) GetClusters(ctx context.Context, env Environment) ([]ent
 	if err != nil {
 		return nil, err
 	}
+	defer client.Close()
 
 	clusters, err := fm.getServiceClusters(client)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/tupyy/osdviewer/internal/entity"
 	"github.com/tupyy/osdviewer/internal/service"
 )
 
@@ -14,8 +15,13 @@ const (
 )
 
 var (
-	enviroments = map[int]string{1: "integration", 2: "stage", 3: "prod"}
+	enviroments = map[int]service.Environment{1: service.Integration, 2: service.Stage, 3: service.Production}
 )
+
+type result[T any, E error] struct {
+	Result T
+	Err    E
+}
 
 type Tui struct {
 	app *tview.Application
@@ -36,7 +42,7 @@ type Tui struct {
 	fmReader service.FleetManagerReader
 
 	// close the start method
-	done chan interface{}
+	done chan chan interface{}
 }
 
 func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
@@ -45,12 +51,12 @@ func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
 		pages:    tview.NewPages(),
 		fmReader: fmReader,
 		views:    make(map[string]*View),
-		done:     make(chan interface{}),
+		done:     make(chan chan interface{}),
 	}
 
 	for i := 1; i < 4; i++ {
-		v := t.addPage(enviroments[i])
-		t.views[enviroments[i]] = v
+		v := t.addPage(enviroments[i].String())
+		t.views[enviroments[i].String()] = v
 	}
 
 	t.pages.AddPage("help", newHelpView(), true, true)
@@ -61,39 +67,55 @@ func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
 // Start starts a go routin which draws app every 0.5s.
 // In this way, we avoid to pass app pointer to every primitive which needs to be redrawn
 func (t *Tui) Start() {
-	go func(done chan interface{}) {
+	// read clusters from all env
+	for _, e := range enviroments {
+		result := <-t.getClusters(context.TODO(), e)
+		if result.Err == nil {
+			if view, ok := t.views[e.String()]; ok {
+				view.SetData(result.Result)
+			}
+		}
+	}
+
+	go func(done chan chan interface{}) {
 		for {
 			select {
 			case <-time.After(500 * time.Millisecond):
 				t.app.Draw()
-			case <-done:
+			case d := <-done:
+				d <- struct{}{}
 				return
 			}
 		}
 	}(t.done)
 
-	go func(done chan interface{}) {
+	go func(done chan chan interface{}) {
 		for {
 			select {
 			case <-time.After(1 * time.Second):
+				page := t.currentPage()
 				// get the current page
 				var e service.Environment
-				switch t.currentPage() {
+				switch page {
 				case "integration":
 					e = service.Integration
 				case "stage":
 					e = service.Stage
-				case "prod":
+				case "production":
 					e = service.Production
 				default:
 					break
 				}
 
-				clusters, err := t.fmReader.GetClusters(context.TODO(), e)
-				if err == nil {
-					t.views[t.currentPage()].SetData(clusters)
+				// wait until ocm reads the clusters
+				result := <-t.getClusters(context.TODO(), e)
+				if result.Err == nil {
+					if view, ok := t.views[page]; ok {
+						view.SetData(result.Result)
+					}
 				}
-			case <-done:
+			case d := <-done:
+				d <- struct{}{}
 				return
 			}
 		}
@@ -101,7 +123,9 @@ func (t *Tui) Start() {
 }
 
 func (t *Tui) Stop() {
-	t.done <- struct{}{}
+	d := make(chan interface{})
+	t.done <- d
+	<-d
 }
 
 func (t *Tui) HandleEventKey(key *tcell.EventKey) {
@@ -118,7 +142,7 @@ func (t *Tui) HandleEventKey(key *tcell.EventKey) {
 		// if the key is a page number then show the page
 		idx := int(key.Rune() - keyOne)
 		if idx < len(t.views) && idx >= 0 {
-			t.showPage(enviroments[idx])
+			t.showPage(enviroments[idx].String())
 		}
 	}
 }
@@ -136,7 +160,7 @@ func (t *Tui) nextPage() {
 		t.currentPageIdx = 1
 	}
 
-	t.showPage(enviroments[t.currentPageIdx])
+	t.showPage(enviroments[t.currentPageIdx].String())
 }
 
 // Show the previous page. If the current page is the first one than show the last page.
@@ -146,7 +170,7 @@ func (t *Tui) previousPage() {
 		t.currentPageIdx = len(t.views)
 	}
 
-	t.showPage(enviroments[t.currentPageIdx])
+	t.showPage(enviroments[t.currentPageIdx].String())
 }
 
 func (t *Tui) showPage(name string) {
@@ -155,6 +179,8 @@ func (t *Tui) showPage(name string) {
 		t.rootFlex.AddItem(t.navBar, 1, 1, true)
 	}
 
+	view := t.views[name]
+	view.Clear()
 	t.pages.SwitchToPage(name)
 	t.navBar.SelectPage(name)
 }
@@ -168,7 +194,7 @@ func (t *Tui) addPage(name string) *View {
 func (t *Tui) createNavBar() *NavBar {
 	navBar := NewNavBar()
 	for i := 1; i < 4; i++ {
-		navBar.AddPage(i, enviroments[i])
+		navBar.AddPage(i, enviroments[i].String())
 	}
 	return navBar
 }
@@ -176,4 +202,15 @@ func (t *Tui) createNavBar() *NavBar {
 func (t *Tui) currentPage() string {
 	currentPageName, _ := t.pages.GetFrontPage()
 	return currentPageName
+}
+
+func (t *Tui) getClusters(ctx context.Context, e service.Environment) chan result[[]entity.Cluster, error] {
+	resultCh := make(chan result[[]entity.Cluster, error])
+
+	go func() {
+		clusters, err := t.fmReader.GetClusters(ctx, e)
+		resultCh <- result[[]entity.Cluster, error]{clusters, err}
+	}()
+
+	return resultCh
 }

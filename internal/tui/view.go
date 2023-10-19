@@ -32,6 +32,10 @@ func (m *View) SetData(clusters []entity.Cluster) {
 	m.table.SetContent(NewTableContent(clusters))
 }
 
+func (m *View) Clear() {
+	m.table.Clear()
+}
+
 func (m *View) HandleEventKey(key *tcell.EventKey) {
 	switch key.Rune() {
 	case rune('m'):
