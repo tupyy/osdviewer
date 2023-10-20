@@ -1,6 +1,9 @@
 package entity
 
 import (
+	"fmt"
+	"strings"
+
 	v1 "github.com/openshift-online/ocm-sdk-go/osdfleetmgmt/v1"
 )
 
@@ -17,6 +20,7 @@ type Cluster interface {
 	State() string
 	Region() string
 	Kind() int
+	String() string
 }
 
 type cluster struct {
@@ -59,6 +63,16 @@ func (sc *ServiceCluster) Region() string {
 
 func (sc *ServiceCluster) Kind() int {
 	return ServiceClusterType
+}
+
+func (sc *ServiceCluster) String() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, sc.ID())
+	fmt.Fprintf(&sb, sc.ClusterID())
+	fmt.Fprintf(&sb, sc.Sector())
+	fmt.Fprintf(&sb, sc.State())
+	fmt.Fprintf(&sb, sc.Region())
+	return sb.String()
 }
 
 func (sc *ServiceCluster) AddManagementCluster(mc *ManagementCluster) {
@@ -124,4 +138,14 @@ func (mc *ManagementCluster) Region() string {
 
 func (mc *ManagementCluster) Kind() int {
 	return ManagementClusterType
+}
+
+func (mc *ManagementCluster) String() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, mc.ID())
+	fmt.Fprintf(&sb, mc.ClusterID())
+	fmt.Fprintf(&sb, mc.Sector())
+	fmt.Fprintf(&sb, mc.State())
+	fmt.Fprintf(&sb, mc.Region())
+	return sb.String()
 }

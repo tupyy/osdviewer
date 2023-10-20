@@ -22,7 +22,7 @@ func NewNavBar() *NavBar {
 
 // AddPage shows the names of the pages in the navBar.
 func (navBar *NavBar) AddPage(idx int, name string) {
-	fmt.Fprintf(navBar, `%d ["%s"][darkcyan]%s[white][""]  `, idx, name, name)
+	fmt.Fprintf(navBar, `%d ["%s"][yellow]%s[white][""]  `, idx, name, name)
 }
 
 // SelectPage highlight the page.

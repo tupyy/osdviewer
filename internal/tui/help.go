@@ -12,7 +12,8 @@ var helpTextView = tview.NewTextView()
 
 const (
 	subtitle   = `osdfm v1.0 - Manage clusters in different environments`
-	navigation = `Right arrow: Next Page    Left arrow: Previous Page   P: Show Help     Ctrl-C: Exit`
+	navigation = `Right arrow: Next Page    Left arrow: Previous Page    Ctrl-C: Exit`
+	nav2       = `Press ENTER to continue`
 )
 
 func newHelpView() (content tview.Primitive) {
@@ -34,7 +35,8 @@ func newHelpView() (content tview.Primitive) {
 		SetBorders(0, 0, 0, 0, 0, 0).
 		AddText(subtitle, true, tview.AlignCenter, tcell.ColorWhite).
 		AddText("", true, tview.AlignCenter, tcell.ColorWhite).
-		AddText(navigation, true, tview.AlignCenter, tcell.ColorDarkMagenta)
+		AddText(navigation, true, tview.AlignCenter, tcell.ColorGreen).
+		AddText(nav2, true, tview.AlignCenter, tcell.ColorGreen)
 
 	// Create a Flex layout that centers the logo and subtitle.
 	flex := tview.NewFlex().

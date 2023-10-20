@@ -35,7 +35,7 @@ type Tui struct {
 	// Pages
 	pages *tview.Pages
 
-	views map[string]*View
+	views map[string]*ClusterView
 
 	currentPageIdx int
 
@@ -50,7 +50,7 @@ func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
 		app:      app,
 		pages:    tview.NewPages(),
 		fmReader: fmReader,
-		views:    make(map[string]*View),
+		views:    make(map[string]*ClusterView),
 		done:     make(chan chan interface{}),
 	}
 
@@ -67,16 +67,6 @@ func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
 // Start starts a go routin which draws app every 0.5s.
 // In this way, we avoid to pass app pointer to every primitive which needs to be redrawn
 func (t *Tui) Start() {
-	// read clusters from all env
-	for _, e := range enviroments {
-		result := <-t.getClusters(context.TODO(), e)
-		if result.Err == nil {
-			if view, ok := t.views[e.String()]; ok {
-				view.SetData(result.Result)
-			}
-		}
-	}
-
 	go func(done chan chan interface{}) {
 		for {
 			select {
@@ -109,10 +99,8 @@ func (t *Tui) Start() {
 
 				// wait until ocm reads the clusters
 				result := <-t.getClusters(context.TODO(), e)
-				if result.Err == nil {
-					if view, ok := t.views[page]; ok {
-						view.SetData(result.Result)
-					}
+				if view, ok := t.views[page]; ok {
+					view.Model(result)
 				}
 			case d := <-done:
 				d <- struct{}{}
@@ -135,6 +123,11 @@ func (t *Tui) HandleEventKey(key *tcell.EventKey) {
 	case tcell.KeyEnter:
 		if t.currentPage() == "help" {
 			t.nextPage()
+		} else {
+			view := t.views[t.currentPage()]
+			if view != nil {
+				view.HandleEventKey(key)
+			}
 		}
 	case tcell.KeyRight:
 		t.nextPage()
@@ -143,6 +136,11 @@ func (t *Tui) HandleEventKey(key *tcell.EventKey) {
 		idx := int(key.Rune() - keyOne)
 		if idx < len(t.views) && idx >= 0 {
 			t.showPage(enviroments[idx].String())
+		} else {
+			view := t.views[t.currentPage()]
+			if view != nil {
+				view.HandleEventKey(key)
+			}
 		}
 	}
 }
@@ -179,15 +177,15 @@ func (t *Tui) showPage(name string) {
 		t.rootFlex.AddItem(t.navBar, 1, 1, true)
 	}
 
-	view := t.views[name]
-	view.Clear()
-	t.pages.SwitchToPage(name)
 	t.navBar.SelectPage(name)
+	t.pages.SwitchToPage(name)
+	view := t.views[t.currentPage()]
+	t.app.SetFocus(view)
 }
 
-func (t *Tui) addPage(name string) *View {
-	v := NewView(name, t.app)
-	t.pages.AddPage(name, v.Layout(), true, true)
+func (t *Tui) addPage(name string) *ClusterView {
+	v := NewClusterView(name)
+	t.pages.AddPage(name, v, true, true)
 	return v
 }
 

@@ -11,6 +11,21 @@ const (
 
 type ClusterTableContent struct {
 	clusters []entity.Cluster
+	filter   func(entity.Cluster) bool
+}
+
+func NewTableContent(clusters []entity.Cluster) *ClusterTableContent {
+	return &ClusterTableContent{
+		clusters: clusters,
+		filter:   func(c entity.Cluster) bool { return true },
+	}
+}
+
+func NewTableContentWithFilter(clusters []entity.Cluster, filter func(entity.Cluster) bool) *ClusterTableContent {
+	return &ClusterTableContent{
+		clusters: clusters,
+		filter:   filter,
+	}
 }
 
 func (tc *ClusterTableContent) GetCell(row, column int) *tview.TableCell {
@@ -23,8 +38,9 @@ func (tc *ClusterTableContent) GetCell(row, column int) *tview.TableCell {
 }
 
 func (tc *ClusterTableContent) GetRowCount() int {
+	clusters := tc.applyFilter(tc.filter)
 	count := 0
-	for _, s := range tc.clusters {
+	for _, s := range clusters {
 		sc := s.(*entity.ServiceCluster)
 		count += 1 + len(sc.Children)
 	}
@@ -33,6 +49,41 @@ func (tc *ClusterTableContent) GetRowCount() int {
 
 func (tc *ClusterTableContent) GetColumnCount() int {
 	return COUNT_COL
+}
+
+func (tc *ClusterTableContent) getCluster(row int) entity.Cluster {
+	clusters := tc.applyFilter(tc.filter)
+	i := 0
+	for _, s := range clusters {
+		if i == row {
+			return s
+		}
+		i += 1
+
+		sc := s.(*entity.ServiceCluster)
+		for _, mc := range sc.Children {
+			if i == row {
+				return mc
+			}
+			i += 1
+		}
+	}
+
+	return nil
+}
+
+func (tc *ClusterTableContent) SetFilter(filter func(entity.Cluster) bool) {
+	tc.filter = filter
+}
+
+func (tc *ClusterTableContent) applyFilter(filter func(c entity.Cluster) bool) []entity.Cluster {
+	filteredClusters := make([]entity.Cluster, 0, len(tc.clusters))
+	for _, c := range tc.clusters {
+		if filter(c) {
+			filteredClusters = append(filteredClusters, c)
+		}
+	}
+	return filteredClusters
 }
 
 // SetCell does not do anything.
@@ -63,28 +114,4 @@ func (tc *ClusterTableContent) InsertColumn(column int) {
 // Clear does not do anything.
 func (tc *ClusterTableContent) Clear() {
 	// nop.
-}
-
-func (tc *ClusterTableContent) getCluster(row int) entity.Cluster {
-	i := 0
-	for _, s := range tc.clusters {
-		if i == row {
-			return s
-		}
-		i += 1
-
-		sc := s.(*entity.ServiceCluster)
-		for _, mc := range sc.Children {
-			if i == row {
-				return mc
-			}
-			i += 1
-		}
-	}
-
-	return nil
-}
-
-func NewTableContent(clusters []entity.Cluster) *ClusterTableContent {
-	return &ClusterTableContent{clusters: clusters}
 }
