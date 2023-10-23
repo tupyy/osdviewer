@@ -29,7 +29,7 @@ func main() {
 
 	// ESC exits
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyEsc {
+		if event.Key() == tcell.KeyCtrlC {
 			tui.Stop()
 			app.Stop()
 		}

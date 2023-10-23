@@ -35,7 +35,7 @@ type Tui struct {
 	// Pages
 	pages *tview.Pages
 
-	views map[string]*ClusterView
+	views map[string]*TableView
 
 	currentPageIdx int
 
@@ -50,7 +50,7 @@ func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
 		app:      app,
 		pages:    tview.NewPages(),
 		fmReader: fmReader,
-		views:    make(map[string]*ClusterView),
+		views:    make(map[string]*TableView),
 		done:     make(chan chan interface{}),
 	}
 
@@ -59,7 +59,10 @@ func New(app *tview.Application, fmReader service.FleetManagerReader) *Tui {
 		t.views[enviroments[i].String()] = v
 	}
 
+	t.navBar = t.createNavBar()
 	t.pages.AddPage("help", newHelpView(), true, true)
+	t.rootFlex = tview.NewFlex().SetDirection(tview.FlexRow).AddItem(t.pages, 0, 1, true)
+	t.rootFlex.AddItem(t.navBar, 1, 1, true)
 
 	return &t
 }
@@ -83,10 +86,10 @@ func (t *Tui) Start() {
 		for {
 			select {
 			case <-time.After(1 * time.Second):
-				page := t.currentPage()
+				name, view := t.currentTableView()
 				// get the current page
 				var e service.Environment
-				switch page {
+				switch name {
 				case "integration":
 					e = service.Integration
 				case "stage":
@@ -98,8 +101,8 @@ func (t *Tui) Start() {
 				}
 
 				// wait until ocm reads the clusters
-				result := <-t.getClusters(context.TODO(), e)
-				if view, ok := t.views[page]; ok {
+				result := <-t.getServiceClusters(context.TODO(), e)
+				if view != nil {
 					view.Model(result)
 				}
 			case d := <-done:
@@ -121,13 +124,16 @@ func (t *Tui) HandleEventKey(key *tcell.EventKey) {
 	case tcell.KeyLeft:
 		t.previousPage()
 	case tcell.KeyEnter:
-		if t.currentPage() == "help" {
+		if name, _ := t.pages.GetFrontPage(); name == "help" {
 			t.nextPage()
 		} else {
-			view := t.views[t.currentPage()]
-			if view != nil {
-				view.HandleEventKey(key)
-			}
+			_, _, width, height := t.rootFlex.GetInnerRect()
+			v := NewClusterView(width, height)
+			t.pages.AddPage("models", v, true, true)
+			// view := t.views[t.currentPage()]
+			// if view != nil {
+			// 	view.HandleEventKey(key)
+			// }
 		}
 	case tcell.KeyRight:
 		t.nextPage()
@@ -137,7 +143,7 @@ func (t *Tui) HandleEventKey(key *tcell.EventKey) {
 		if idx < len(t.views) && idx >= 0 {
 			t.showPage(enviroments[idx].String())
 		} else {
-			view := t.views[t.currentPage()]
+			_, view := t.currentTableView()
 			if view != nil {
 				view.HandleEventKey(key)
 			}
@@ -147,7 +153,6 @@ func (t *Tui) HandleEventKey(key *tcell.EventKey) {
 
 // Layout returns the root flex
 func (t *Tui) Layout() tview.Primitive {
-	t.rootFlex = tview.NewFlex().SetDirection(tview.FlexRow).AddItem(t.pages, 0, 1, true)
 	return t.rootFlex
 }
 
@@ -173,18 +178,16 @@ func (t *Tui) previousPage() {
 
 func (t *Tui) showPage(name string) {
 	if t.navBar == nil {
-		t.navBar = t.createNavBar()
-		t.rootFlex.AddItem(t.navBar, 1, 1, true)
 	}
 
 	t.navBar.SelectPage(name)
 	t.pages.SwitchToPage(name)
-	view := t.views[t.currentPage()]
+	_, view := t.currentTableView()
 	t.app.SetFocus(view)
 }
 
-func (t *Tui) addPage(name string) *ClusterView {
-	v := NewClusterView(name)
+func (t *Tui) addPage(name string) *TableView {
+	v := NewTableView(name)
 	t.pages.AddPage(name, v, true, true)
 	return v
 }
@@ -197,12 +200,12 @@ func (t *Tui) createNavBar() *NavBar {
 	return navBar
 }
 
-func (t *Tui) currentPage() string {
+func (t *Tui) currentTableView() (string, *TableView) {
 	currentPageName, _ := t.pages.GetFrontPage()
-	return currentPageName
+	return currentPageName, t.views[currentPageName]
 }
 
-func (t *Tui) getClusters(ctx context.Context, e service.Environment) chan result[[]entity.Cluster, error] {
+func (t *Tui) getServiceClusters(ctx context.Context, e service.Environment) chan result[[]entity.Cluster, error] {
 	resultCh := make(chan result[[]entity.Cluster, error])
 
 	go func() {

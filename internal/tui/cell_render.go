@@ -42,10 +42,14 @@ func RenderCell(cluster entity.Cluster, col int) *tview.TableCell {
 	case 2:
 		if cluster.Kind() == entity.ServiceClusterType {
 			cell = tview.NewTableCell(cluster.Sector())
+		} else {
+			cell = tview.NewTableCell("")
 		}
 	case 3:
 		if cluster.Kind() == entity.ServiceClusterType {
 			cell = tview.NewTableCell(cluster.Region())
+		} else {
+			cell = tview.NewTableCell("")
 		}
 	}
 
