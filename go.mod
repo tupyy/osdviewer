@@ -3,8 +3,8 @@ module github.com/tupyy/osdviewer
 go 1.18
 
 require (
-	github.com/gdamore/tcell v1.4.0
 	github.com/gdamore/tcell/v2 v2.6.0
+	github.com/onsi/gomega v1.19.0
 	github.com/openshift-online/ocm-sdk-go v0.1.374
 	github.com/rivo/tview v0.0.0-20231007183732-6c844bdc5f7a
 )
@@ -37,5 +37,6 @@ require (
 	golang.org/x/term v0.6.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

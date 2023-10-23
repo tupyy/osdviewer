@@ -11,11 +11,28 @@ type FleetManagerReader interface {
 	GetClusters(ctx context.Context, env Environment) ([]entity.Cluster, error)
 }
 
+type cacheData struct {
+	Data     []entity.Cluster
+	ttl      time.Duration
+	lastRead time.Time
+}
+
+func (c *cacheData) NextHit() time.Time {
+	return c.lastRead.Add(c.ttl)
+}
+
+func newCacheData(data []entity.Cluster, ttl time.Duration) *cacheData {
+	return &cacheData{
+		Data:     data,
+		ttl:      ttl,
+		lastRead: time.Now(),
+	}
+}
+
 // wrapper around FleetManager for cache
 type FleetManagerCache struct {
-	lastRead time.Time
 	cacheTtl time.Duration
-	cache    map[Environment][]entity.Cluster
+	cache    map[Environment]*cacheData
 	reader   FleetManagerReader
 }
 
@@ -25,17 +42,16 @@ func NewDefaultFleetManagerCache(reader FleetManagerReader) *FleetManagerCache {
 
 func NewFleetManagerCache(reader FleetManagerReader, cacheTtl time.Duration) *FleetManagerCache {
 	return &FleetManagerCache{
-		lastRead: time.Now(),
 		cacheTtl: cacheTtl,
 		reader:   reader,
-		cache:    make(map[Environment][]entity.Cluster),
+		cache:    make(map[Environment]*cacheData),
 	}
 }
 
 func (c *FleetManagerCache) GetClusters(ctx context.Context, env Environment) ([]entity.Cluster, error) {
-	if c.lastRead.Add(c.cacheTtl).Before(time.Now()) {
-		if clusters, ok := c.cache[env]; ok {
-			return clusters, nil
+	if data, ok := c.cache[env]; ok {
+		if data.NextHit().After(time.Now()) {
+			return data.Data, nil
 		}
 	}
 
@@ -45,8 +61,7 @@ func (c *FleetManagerCache) GetClusters(ctx context.Context, env Environment) ([
 	}
 
 	// save to cache
-	c.cache[env] = clusters
-	c.lastRead = time.Now()
+	c.cache[env] = newCacheData(clusters, c.cacheTtl)
 
 	return clusters, nil
 }
