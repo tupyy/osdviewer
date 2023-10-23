@@ -10,12 +10,19 @@ import (
 	"github.com/tupyy/osdviewer/internal/tui"
 )
 
+var (
+	CommitID string
+)
+
 func main() {
 	token := os.Getenv("OCM_TOKEN")
 	if token == "" {
 		fmt.Fprintf(os.Stderr, "ocm token not found. Please provide token as env var OCM_TOKEN.\n")
 		os.Exit(1)
 	}
+
+	fmt.Printf("Build from commit %q\n", CommitID)
+
 	fm := service.NewDefaultFleetManagerCache(service.NewFleetManager(token))
 	app := tview.NewApplication()
 	tui := tui.New(app, fm)
