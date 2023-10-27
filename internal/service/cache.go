@@ -49,10 +49,8 @@ func NewFleetManagerCache(reader FleetManagerReader, cacheTtl time.Duration) *Fl
 }
 
 func (c *FleetManagerCache) GetClusters(ctx context.Context, env Environment) ([]entity.Cluster, error) {
-	if data, ok := c.cache[env]; ok {
-		if data.NextHit().After(time.Now()) {
-			return data.Data, nil
-		}
+	if data, ok := c.cache[env]; ok && time.Now().Before(data.NextHit()) {
+		return data.Data, nil
 	}
 
 	clusters, err := c.reader.GetClusters(ctx, env)

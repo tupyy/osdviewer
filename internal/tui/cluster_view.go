@@ -77,10 +77,8 @@ func (v *ClusterView) Model(model any) {
 	c, ok := model.(result[[]entity.Cluster, error])
 	if ok {
 		if c.Err == nil {
-			if v.sourceData == nil {
-				v.sourceData = NewTableContent(c.Result)
-				v.sourceData.SetFilter(v.getFilterFunc())
-			}
+			v.sourceData = NewTableContent(c.Result)
+			v.sourceData.SetFilter(v.getFilterFunc())
 			v.table.SetContent(v.sourceData)
 			v.state = ViewState{State: ReadyState}
 		} else {

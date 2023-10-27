@@ -82,7 +82,7 @@ func (t *Tui) Start() {
 	go func(done chan chan interface{}) {
 		for {
 			select {
-			case <-time.After(1 * time.Second):
+			case <-time.After(5 * time.Second):
 				page := t.currentPage()
 				// get the current page
 				var e service.Environment
